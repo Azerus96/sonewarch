@@ -3,6 +3,7 @@ from typing import List, Dict, Optional
 from dataclasses import dataclass
 import re
 import math
+from bs4 import BeautifulSoup
 
 @dataclass
 class RankingMetrics:
