@@ -1,13 +1,18 @@
 # app/core/search_engine.py
-
-from dataclasses import dataclass
 import asyncio
 import logging
 from typing import List, Set, Optional
+from bs4 import BeautifulSoup
+import aiohttp
+import redis.asyncio as redis
+from urllib.parse import urljoin, urlparse
+from dataclasses import dataclass
 from ..services.connection_pool import ConnectionPool
 from ..services.rate_limiter import RateLimiter
 from ..services.cache_service import CacheService
 from ..services.state_manager import StateManager
+from ..utils.text_ranking import TextRanker
+from ..utils.error_handler import handle_errors
 from .crawler import Crawler
 from .parser import Parser
 from .text_processor import TextProcessor
