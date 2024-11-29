@@ -1,9 +1,11 @@
 # app/web/routes.py
 
 from flask import Blueprint, render_template, request, jsonify
-from ..core.search_engine import SearchEngine
 import asyncio
-import time
+import logging
+from ..core.search_engine import SearchEngine
+from ..utils.error_handler import handle_errors, format_error_message
+from ..services.state_manager import StateManager
 
 web = Blueprint('web', __name__)
 search_engine = SearchEngine()
