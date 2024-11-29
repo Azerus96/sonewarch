@@ -1,11 +1,14 @@
 # app/core/crawler.py
 
 import asyncio
+import logging
 from typing import Set, Optional
 from urllib.parse import urljoin, urlparse
 import aiohttp
+from bs4 import BeautifulSoup
 from ..services.connection_pool import ConnectionPool
 from ..services.rate_limiter import RateLimiter
+from ..utils.error_handler import handle_errors
 
 class Crawler:
     def __init__(self, connection_pool: ConnectionPool, rate_limiter: RateLimiter):
