@@ -1,0 +1,105 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Web Search Engine</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Advanced Web Search Engine</h1>
+            <p class="subtitle">Быстрый и эффективный поиск по сайтам</p>
+        </header>
+
+        <main class="main">
+            <section class="search-section">
+                <form id="searchForm" class="search-form">
+                    <div class="form-group">
+                        <label for="url">URL сайта:</label>
+                        <input 
+                            type="url" 
+                            id="url" 
+                            name="url" 
+                            required 
+                            placeholder="https://example.com"
+                            pattern="https?://.*"
+                        >
+                        <small class="form-help">Введите полный URL сайта, включая http:// или https://</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="search_term">Поисковый запрос:</label>
+                        <input 
+                            type="text" 
+                            id="search_term" 
+                            name="search_term" 
+                            required 
+                            minlength="3"
+                            placeholder="Введите текст для поиска"
+                        >
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label for="max_pages">Максимум страниц:</label>
+                            <input 
+                                type="number" 
+                                id="max_pages" 
+                                name="max_pages" 
+                                required 
+                                min="1" 
+                                max="100" 
+                                value="50"
+                            >
+                        </div>
+
+                        <div class="form-group half">
+                            <label for="max_depth">Глубина поиска:</label>
+                            <input 
+                                type="number" 
+                                id="max_depth" 
+                                name="max_depth" 
+                                required 
+                                min="1" 
+                                max="10" 
+                                value="3"
+                            >
+                        </div>
+                    </div>
+
+                    <button type="submit" id="searchButton" class="btn-primary">
+                        <span class="btn-text">Начать поиск</span>
+                        <span class="btn-icon">🔍</span>
+                    </button>
+                </form>
+            </section>
+
+            <section class="progress-section" id="progressSection">
+                <div class="progress-container">
+                    <div class="progress-info">
+                        <span id="statusMessage" class="status-message">Подготовка к поиску...</span>
+                        <span id="progressPercent" class="progress-percent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progressBar" class="progress-fill"></div>
+                    </div>
+                    <div id="progressStats" class="progress-stats"></div>
+                </div>
+            </section>
+
+            <section class="results-section">
+                <div id="results" class="results-container"></div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>© 2024 Advanced Web Search Engine</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/search.js') }}"></script>
+</body>
+</html>
