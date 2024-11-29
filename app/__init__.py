@@ -2,9 +2,8 @@
 from flask import Flask
 from flask_sock import Sock
 from config.settings import get_config
-import logging.config
-from .web.routes import web
-from .web.websocket import sock
+
+sock = Sock()
 
 def create_app(config_name=None):
     app = Flask(__name__)
@@ -16,7 +15,8 @@ def create_app(config_name=None):
     # Инициализация WebSocket
     sock.init_app(app)
     
-    # Регистрация blueprints
+    # Регистрация маршрутов
+    from .web.routes import web
     app.register_blueprint(web)
     
     return app
