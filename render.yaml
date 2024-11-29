@@ -3,9 +3,15 @@ services:
     name: search-engine
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn "main:app"
+    startCommand: gunicorn wsgi:app --worker-class=uvicorn.workers.UvicornWorker --workers=4 --bind=0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
       - key: FLASK_ENV
         value: production
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
