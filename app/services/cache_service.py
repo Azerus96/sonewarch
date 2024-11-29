@@ -5,6 +5,7 @@ import json
 import logging
 from typing import Optional
 from datetime import timedelta
+from ..utils.error_handler import handle_errors
 
 class CacheService:
     def __init__(self, host='localhost', port=6379, db=0):
