@@ -1,10 +1,13 @@
 # app/services/state_manager.py
 
-from dataclasses import dataclass
+import os
 import json
 import time
+import logging
 from typing import Dict, Optional
-import asyncio
+from datetime import datetime
+from redis import Redis
+from dataclasses import dataclass, asdict
 
 @dataclass
 class SearchState:
@@ -14,17 +17,13 @@ class SearchState:
     current_status: str = "waiting"
     start_time: float = 0
     error: Optional[str] = None
+    last_update: float = 0
 
-    def to_dict(self):
-        return {
-            "total_urls": self.total_urls,
-            "processed_urls": self.processed_urls,
-            "found_results": self.found_results,
-            "current_status": self.current_status,
-            "progress": self.calculate_progress(),
-            "elapsed_time": round(time.time() - self.start_time, 2),
-            "error": self.error
-        }
+    def to_dict(self) -> dict:
+        data = asdict(self)
+        data['progress'] = self.calculate_progress()
+        data['elapsed_time'] = round(time.time() - self.start_time, 2)
+        return data
 
     def calculate_progress(self) -> float:
         if self.total_urls == 0:
@@ -33,53 +32,94 @@ class SearchState:
 
 class StateManager:
     def __init__(self):
-        self.states: Dict[str, SearchState] = {}
-        self.locks: Dict[str, asyncio.Lock] = {}
-        self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
+        self.redis = Redis(
+            host=os.getenv('REDIS_HOST', 'localhost'),
+            port=int(os.getenv('REDIS_PORT', 6379)),
+            db=int(os.getenv('REDIS_DB', 0)),
+            decode_responses=True
+        )
+        self.logger = logging.getLogger(__name__)
+        self.state_prefix = "search_state:"
+        self.expiration_time = 3600  # 1 час
 
-    async def init_search(self, search_id: str):
-        self.states[search_id] = SearchState(start_time=time.time())
-        self.locks[search_id] = asyncio.Lock()
-
-    async def update_total_urls(self, search_id: str, total: int):
-        async with self.locks[search_id]:
-            self.states[search_id].total_urls = total
-            self.states[search_id].current_status = "searching"
-
-    async def increment_processed_urls(self, search_id: str):
-        async with self.locks[search_id]:
-            state = self.states[search_id]
-            state.processed_urls += 1
-            state.found_results += 1
-
-    async def complete_search(self, search_id: str):
-        async with self.locks[search_id]:
-            self.states[search_id].current_status = "completed"
-
-    async def fail_search(self, search_id: str, error: str = "Unknown error"):
-        async with self.locks[search_id]:
-            self.states[search_id].current_status = "error"
-            self.states[search_id].error = error
+    async def init_search(self, search_id: str) -> None:
+        """Инициализация нового поиска"""
+        try:
+            state = SearchState(start_time=time.time(), last_update=time.time())
+            await self._save_state(search_id, state)
+            self.logger.info(f"Initialized search state for {search_id}")
+        except Exception as e:
+            self.logger.error(f"Error initializing search state: {e}")
+            raise
 
     async def get_state(self, search_id: str) -> Optional[dict]:
-        if search_id in self.states:
-            return self.states[search_id].to_dict()
-        return None
+        """Получение текущего состояния поиска"""
+        try:
+            data = await self.redis.get(f"{self.state_prefix}{search_id}")
+            if not data:
+                return None
+            return json.loads(data)
+        except Exception as e:
+            self.logger.error(f"Error getting search state: {e}")
+            return None
 
-    async def _periodic_cleanup(self):
-        while True:
-            try:
-                current_time = time.time()
-                to_remove = [
-                    search_id for search_id, state in self.states.items()
-                    if current_time - state.start_time > 3600  # 1 час
-                ]
-                
-                for search_id in to_remove:
-                    del self.states[search_id]
-                    del self.locks[search_id]
-                    
-                await asyncio.sleep(300)  # Проверка каждые 5 минут
-            except Exception as e:
-                logging.error(f"State cleanup error: {e}")
-                await asyncio.sleep(60)
+    async def update_state(self, search_id: str, **kwargs) -> None:
+        """Обновление состояния поиска"""
+        try:
+            current_state = await self.get_state(search_id)
+            if not current_state:
+                return
+
+            state = SearchState(**current_state)
+            for key, value in kwargs.items():
+                if hasattr(state, key):
+                    setattr(state, key, value)
+            
+            state.last_update = time.time()
+            await self._save_state(search_id, state)
+        except Exception as e:
+            self.logger.error(f"Error updating search state: {e}")
+            raise
+
+    async def _save_state(self, search_id: str, state: SearchState) -> None:
+        """Сохранение состояния в Redis"""
+        try:
+            key = f"{self.state_prefix}{search_id}"
+            await self.redis.setex(
+                key,
+                self.expiration_time,
+                json.dumps(state.to_dict())
+            )
+        except Exception as e:
+            self.logger.error(f"Error saving state: {e}")
+            raise
+
+    async def mark_completed(self, search_id: str) -> None:
+        """Отметить поиск как завершенный"""
+        await self.update_state(
+            search_id,
+            current_status="completed",
+            last_update=time.time()
+        )
+
+    async def mark_error(self, search_id: str, error: str) -> None:
+        """Отметить поиск как завершенный с ошибкой"""
+        await self.update_state(
+            search_id,
+            current_status="error",
+            error=error,
+            last_update=time.time()
+        )
+
+    async def cleanup_old_states(self) -> None:
+        """Очистка устаревших состояний"""
+        try:
+            current_time = time.time()
+            async for key in self.redis.scan_iter(f"{self.state_prefix}*"):
+                state_data = await self.redis.get(key)
+                if state_data:
+                    state = json.loads(state_data)
+                    if current_time - state['last_update'] > self.expiration_time:
+                        await self.redis.delete(key)
+        except Exception as e:
+            self.logger.error(f"Error cleaning up old states: {e}")
